@@ -2,36 +2,38 @@ from sentence_transformers import SentenceTransformer
 import json
 import numpy as np
 
-# Load embedding model
+VECTOR_STORE = "endee_store.json"
+
+# Load model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Load stored vectors
-with open("vectors.json", "r") as f:
-    data = json.load(f)
-
-documents = data["documents"]
-embeddings = np.array(data["embeddings"])
+# Load Endee-style vector DB
+with open(VECTOR_STORE, "r") as f:
+    store = json.load(f)
 
 def cosine_similarity(a, b):
+    a = np.array(a)
+    b = np.array(b)
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-# User query
+def semantic_search(query, top_k=3):
+    query_embedding = model.encode(query).tolist()
+
+    scored_results = []
+    for item in store:
+        score = cosine_similarity(query_embedding, item["embedding"])
+        scored_results.append((score, item))
+
+    scored_results.sort(reverse=True, key=lambda x: x[0])
+    return scored_results[:top_k]
+
+# Example query
 query = input("Enter your search query: ")
+results = semantic_search(query)
 
-query_embedding = model.encode(query)
-
-scores = []
-
-for i, emb in enumerate(embeddings):
-    score = cosine_similarity(query_embedding, emb)
-    scores.append((score, documents[i]))
-
-# Sort by similarity score
-scores.sort(key=lambda x: x[0], reverse=True)
-
-print("\nTop Semantic Search Results:\n")
-
-for score, doc in scores[:3]:
-    print(f"[{doc['source']}] {doc['text']}")
-    print(f"Similarity Score: {score:.4f}")
+print("\nTop Results:\n")
+for score, item in results:
+    print(f"Score: {score:.4f}")
+    print(f"Source: {item['metadata']['source']}")
+    print(f"Text: {item['document']}")
     print("-" * 50)
